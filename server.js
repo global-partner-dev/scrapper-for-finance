@@ -1,6 +1,8 @@
 require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
+const { startBrazilIndicesCron, getCronStatus, triggerManualRun } = require('./jobs/brazilIndicesCron');
+const { getLatestIndices, getIndexHistory, getIndicesByDateRange } = require('./services/brazilIndicesService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -12,11 +14,97 @@ app.use(express.urlencoded({ extended: true }));
 
 // Routes
 app.get('/', (req, res) => {
-  res.json({ message: 'Welcome to Financial API' });
+  res.json({ 
+    message: 'Welcome to Financial API',
+    endpoints: {
+      health: '/api/health',
+      brazilIndices: {
+        latest: '/api/brazil-indices/latest',
+        history: '/api/brazil-indices/history/:name',
+        dateRange: '/api/brazil-indices/range?start=YYYY-MM-DD&end=YYYY-MM-DD',
+        cronStatus: '/api/brazil-indices/cron/status',
+        manualTrigger: '/api/brazil-indices/cron/trigger'
+      }
+    }
+  });
 });
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'OK', timestamp: new Date().toISOString() });
+});
+
+// Brazil Indices API Routes
+app.get('/api/brazil-indices/latest', async (req, res) => {
+  try {
+    const result = await getLatestIndices();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/brazil-indices/history/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const result = await getIndexHistory(name, limit);
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/brazil-indices/range', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Both start and end dates are required' 
+      });
+    }
+    
+    const result = await getIndicesByDateRange(start, end);
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/brazil-indices/cron/status', (req, res) => {
+  try {
+    const status = getCronStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/brazil-indices/cron/trigger', async (req, res) => {
+  try {
+    // Trigger manual run (don't wait for completion)
+    triggerManualRun();
+    res.json({ 
+      success: true, 
+      message: 'Manual scrape triggered successfully' 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
 });
 
 // Error handling middleware
@@ -32,5 +120,14 @@ app.use((req, res) => {
 
 // Start server
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  console.log(`\n${'='.repeat(80)}`);
+  console.log(`🚀 Financial Backend API Server`);
+  console.log('='.repeat(80));
+  console.log(`📡 Server is running on port ${PORT}`);
+  console.log(`🌐 API URL: http://localhost:${PORT}`);
+  console.log(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log('='.repeat(80));
+  
+  // Start the Brazil Indices cron job
+  startBrazilIndicesCron();
 });
