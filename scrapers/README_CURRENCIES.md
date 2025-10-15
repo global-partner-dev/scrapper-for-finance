@@ -1,155 +1,312 @@
-# Currencies Scraper
+# Currency Exchange Rates Scraper
+
+This scraper extracts real-time currency exchange rate data from Investing.com's Technical Summary page and stores it in Supabase.
 
 ## Overview
 
-This scraper fetches real-time currency exchange rate data from the Investing.com Technical Summary page (https://br.investing.com/technical/technical-summary).
+The scraper fetches currency pair data including:
+
+- Currency pair name (e.g., Dólar/BRL, EUR/BRL)
+- Last price (exchange rate)
+- Absolute change
+- Percentage change
+- Timestamp of when data was scraped
 
 ## Features
 
-- Scrapes currency pairs including:
+✅ **Automated Scraping**: Runs every 2 minutes via cron job  
+✅ **Database Integration**: Stores data in Supabase  
+✅ **REST API**: Full API endpoints for accessing data  
+✅ **Historical Data**: Tracks exchange rate changes over time  
+✅ **Error Handling**: Robust error handling and logging
 
-  - USD/BRL (Dollar/BRL)
-  - EUR/BRL
-  - EUR/USD (EUR/Dollar)
-  - USD/JPY (Dollar/JPY)
-  - GBP/USD (GBP/Dollar)
-  - GBP/BRL
-  - CAD/BRL
-  - And more...
+## Quick Start
 
-- Extracts the following data for each currency pair:
-  - **Name**: Currency pair name (e.g., "Dólar/BRL", "EUR/Dólar")
-  - **Last Price**: Current exchange rate
-  - **Change**: Absolute change in value
-  - **Change Percent**: Percentage change
-  - **Scraped At**: Timestamp of when the data was scraped
+### 1. Database Setup
+
+Run the SQL setup file in your Supabase SQL editor:
+
+```bash
+# File: backend/sqls/03_currencies_setup.sql
+```
+
+This creates:
+
+- `currencies` table
+- Helper functions for data management
+- Row Level Security policies
+- Indexes for performance
+
+### 2. Start the Server
+
+The cron job starts automatically when you run the server:
+
+```bash
+cd backend
+node server.js
+```
+
+The currencies scraper will:
+
+- Run immediately on startup
+- Run every 2 minutes thereafter
+- Log all activities to console
+
+### 3. Test the Integration
+
+```bash
+# Test scraping and database integration
+node backend/test-currencies-integration.js
+
+# Test scraper only
+node backend/test-currencies-scraper.js
+```
+
+## API Endpoints
+
+### Get Latest Currencies
+
+```
+GET /api/currencies/latest
+```
+
+Returns the most recent data for all currency pairs.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "message": "Retrieved 7 currencies",
+  "data": [
+    {
+      "id": "uuid",
+      "name": "Dólar/BRL",
+      "last_price": 5.454,
+      "change": 0.0,
+      "change_percent": 0.0,
+      "scraped_at": "2025-01-15T..."
+    }
+  ]
+}
+```
+
+### Get Currency History
+
+```
+GET /api/currencies/history/:name?limit=100
+```
+
+Returns historical data for a specific currency pair.
+
+**Example:**
+
+```
+GET /api/currencies/history/Dólar%2FBRL?limit=50
+```
+
+### Get Currencies by Date Range
+
+```
+GET /api/currencies/range?start=YYYY-MM-DD&end=YYYY-MM-DD
+```
+
+Returns currency data within a specific date range.
+
+**Example:**
+
+```
+GET /api/currencies/range?start=2025-01-01&end=2025-01-15
+```
+
+### Get Cron Job Status
+
+```
+GET /api/currencies/cron/status
+```
+
+Returns the current status of the cron job.
+
+**Response:**
+
+```json
+{
+  "success": true,
+  "isRunning": false,
+  "lastRunTime": "2025-01-15T...",
+  "lastRunStatus": "success",
+  "runCount": 42,
+  "nextRunIn": "Within 2 minutes"
+}
+```
+
+### Trigger Manual Scrape
+
+```
+POST /api/currencies/cron/trigger
+```
+
+Manually triggers a scrape (useful for testing).
 
 ## Data Structure
 
+### Scraped Data Format
+
 ```javascript
 {
-  name: "Dólar/BRL",
-  lastPrice: 5.4540,
-  change: 0.0000,
-  changePercent: 0.00,
-  scrapedAt: "2025-10-15T21:38:18.473Z"
+  name: "Dólar/BRL",           // Currency pair name
+  lastPrice: 5.4540,            // Current exchange rate
+  change: 0.0000,               // Absolute change
+  changePercent: 0.00,          // Percentage change
+  scrapedAt: "2025-01-15T..."   // ISO timestamp
 }
 ```
 
-## Usage
+### Database Schema
 
-### Basic Usage
-
-```javascript
-const {
-  scrapeCurrencies,
-  displayCurrencies,
-} = require("./scrapers/currenciesScraper");
-
-async function getCurrencyData() {
-  try {
-    const currencies = await scrapeCurrencies();
-    displayCurrencies(currencies);
-    return currencies;
-  } catch (error) {
-    console.error("Error:", error);
-  }
-}
-
-getCurrencyData();
-```
-
-### Testing
-
-Run the test script to verify the scraper is working:
-
-```bash
-node test-currencies-scraper.js
-```
-
-## Output Format
-
-The scraper provides two output formats:
-
-1. **Console Table**: Formatted table display for easy reading
-2. **JSON Array**: Structured data ready for database insertion
-
-### Console Output Example
-
-```
-====================================================================================================
-CURRENCIES DATA - TECHNICAL SUMMARY
-====================================================================================================
-Currency Pair                      Last Price              Change            Change %
-----------------------------------------------------------------------------------------------------
-Dólar/BRL                              5.4540              0.0000               0.00%
-EUR/BRL                                6.3452             -0.0081              -0.13%
-EUR/Dólar                              1.1645             -0.0002              -0.02%
-Dólar/JPY                            151.1000             +0.0300              +0.02%
-GBP/Dólar                              1.3401             -0.0002              -0.01%
-GBP/BRL                                7.3033             -0.0059              -0.08%
-CAD/BRL                                3.8832             -0.0008              -0.02%
-====================================================================================================
-Total currencies: 7
-Scraped at: 10/15/2025, 5:38:18 PM
-====================================================================================================
+```sql
+CREATE TABLE currencies (
+    id uuid PRIMARY KEY,
+    name text NOT NULL,
+    last_price numeric(15, 4),
+    change numeric(15, 4),
+    change_percent numeric(10, 4),
+    scraped_at timestamptz NOT NULL,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL
+);
 ```
 
 ## Technical Details
 
-### HTML Structure
+- **Source URL**: https://br.investing.com/technical/technical-summary
+- **Target Table**: `#QBS_1_inner` (7 currency pairs)
+- **Method**: Cheerio HTML parsing
+- **Number Format**: Brazilian (comma as decimal separator)
+- **Cron Schedule**: Every 2 minutes (`*/2 * * * *`)
+- **Timezone**: America/Sao_Paulo
 
-The scraper targets a table element with id `QBS_1_inner` on the Investing.com page. The table structure is:
+### Currency Pairs Scraped
 
-- Column 1: Side column (empty)
-- Column 2: Currency pair name with link
-- Column 3: Last price
-- Column 4: Change (absolute)
-- Column 5: Change (percentage)
-- Column 6: Icon (status indicator)
-- Column 7: Side column (empty)
+1. **Dólar/BRL** (USD/BRL) - US Dollar to Brazilian Real
+2. **EUR/BRL** - Euro to Brazilian Real
+3. **EUR/Dólar** (EUR/USD) - Euro to US Dollar
+4. **Dólar/JPY** (USD/JPY) - US Dollar to Japanese Yen
+5. **GBP/Dólar** (GBP/USD) - British Pound to US Dollar
+6. **GBP/BRL** - British Pound to Brazilian Real
+7. **CAD/BRL** - Canadian Dollar to Brazilian Real
 
-### Number Format Handling
+## File Structure
 
-The scraper handles Brazilian number format where commas are used as decimal separators:
-
-- `5,4540` is converted to `5.4540`
-- `-0,0081` is converted to `-0.0081`
-- `-0,13%` is converted to `-0.13`
-
-### Browser Simulation
-
-The scraper uses appropriate headers to mimic a real browser request:
-
-- User-Agent: Chrome browser
-- Accept-Language: Portuguese (Brazil)
-- Other standard browser headers
-
-## Dependencies
-
-- `axios`: For HTTP requests
-- `cheerio`: For HTML parsing
+```
+backend/
+├── scrapers/
+│   ├── currenciesScraper.js          # Main scraper logic
+│   └── README_CURRENCIES.md          # This file
+├── services/
+│   └── currenciesService.js          # Database operations
+├── jobs/
+│   └── currenciesCron.js             # Cron job configuration
+├── sqls/
+│   └── 03_currencies_setup.sql       # Database schema
+├── test-currencies-scraper.js        # Scraper test
+└── test-currencies-integration.js    # Full integration test
+```
 
 ## Error Handling
 
-The scraper includes comprehensive error handling:
+The system includes comprehensive error handling:
 
-- Checks if the target table exists
-- Falls back to alternative selectors if needed
-- Validates data before parsing
-- Provides detailed error messages
+- **Network Errors**: Retries and logging
+- **HTML Parsing**: Fallback selectors
+- **Number Format**: Brazilian format validation
+- **Database Errors**: Transaction rollback
+- **Concurrent Runs**: Prevention of overlapping jobs
 
-## Next Steps
+## Monitoring
 
-To integrate with Supabase:
+### Console Logs
 
-1. Create a database table for currencies
-2. Create a service to insert/update currency data
-3. Set up a cron job for periodic scraping
-4. Add data validation and deduplication logic
+The cron job provides detailed logging:
 
-## Notes
+```
+================================================================================
+🚀 Currencies Scraper Job #1 - Started at 1/15/2025, 3:45:00 PM
+================================================================================
+📡 Scraping data from investing.com...
+✅ Scraped 7 currency pairs successfully
+💾 Saving to Supabase...
+✅ Successfully saved 7 currencies to database
+✅ Job completed successfully in 2.34s
+📊 Summary: 7 currency pairs saved to database
+================================================================================
+```
 
-- The page can be accessed without authentication
-- Data is updated in real-time on the source website
-- The scraper respects the website's structure and uses standard web scraping practices
+### Status Endpoint
+
+Monitor the cron job via API:
+
+```bash
+curl http://localhost:3000/api/currencies/cron/status
+```
+
+## Data Retention
+
+By default, data is kept for 30 days. To clean up old data:
+
+```javascript
+const { cleanupOldData } = require("./services/currenciesService");
+
+// Delete data older than 30 days
+await cleanupOldData(30);
+```
+
+## Troubleshooting
+
+### Scraper Returns No Data
+
+1. Check if the website structure has changed
+2. Verify network connectivity
+3. Check console logs for errors
+
+### Database Connection Issues
+
+1. Verify `.env` file has correct Supabase credentials
+2. Check `SUPABASE_SERVICE_ROLE_KEY` is set
+3. Ensure SQL setup script was run
+
+### Cron Job Not Running
+
+1. Check server logs for errors
+2. Verify `node-cron` is installed
+3. Check timezone settings
+
+## Dependencies
+
+- `axios`: HTTP requests
+- `cheerio`: HTML parsing
+- `node-cron`: Job scheduling
+- `@supabase/supabase-js`: Database client
+- Node.js 14+
+
+## Environment Variables
+
+Required in `.env`:
+
+```env
+VITE_SUPABASE_URL=your_supabase_url
+SUPABASE_SERVICE_ROLE_KEY=your_service_role_key
+```
+
+## Contributing
+
+When modifying the scraper:
+
+1. Test with `test-currencies-scraper.js`
+2. Test integration with `test-currencies-integration.js`
+3. Verify cron job works correctly
+4. Update this README if needed
+
+## License
+
+Part of the Financial Backend API project.
