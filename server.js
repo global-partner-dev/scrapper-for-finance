@@ -7,6 +7,8 @@ const { startUSIndicesCron, getCronStatus: getUSCronStatus, triggerManualRun: tr
 const { getLatestIndices: getLatestUSIndices, getIndexHistory: getUSIndexHistory, getIndicesByDateRange: getUSIndicesByDateRange } = require('./services/usIndicesService');
 const { startCurrenciesCron, getCronStatus: getCurrenciesCronStatus, triggerManualRun: triggerCurrenciesManualRun } = require('./jobs/currenciesCron');
 const { getLatestCurrencies, getCurrencyHistory, getCurrenciesByDateRange } = require('./services/currenciesService');
+const { startCommoditiesCron, getCronStatus: getCommoditiesCronStatus, triggerManualRun: triggerCommoditiesManualRun } = require('./jobs/commoditiesCron');
+const { getLatestCommodities, getCommodityHistory, getCommoditiesByDateRange } = require('./services/commoditiesService');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -42,6 +44,13 @@ app.get('/', (req, res) => {
         dateRange: '/api/currencies/range?start=YYYY-MM-DD&end=YYYY-MM-DD',
         cronStatus: '/api/currencies/cron/status',
         manualTrigger: '/api/currencies/cron/trigger'
+      },
+      commodities: {
+        latest: '/api/commodities/latest',
+        history: '/api/commodities/history/:name',
+        dateRange: '/api/commodities/range?start=YYYY-MM-DD&end=YYYY-MM-DD',
+        cronStatus: '/api/commodities/cron/status',
+        manualTrigger: '/api/commodities/cron/trigger'
       }
     }
   });
@@ -273,6 +282,80 @@ app.post('/api/currencies/cron/trigger', async (req, res) => {
   }
 });
 
+// Commodities API Routes
+app.get('/api/commodities/latest', async (req, res) => {
+  try {
+    const result = await getLatestCommodities();
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/commodities/history/:name', async (req, res) => {
+  try {
+    const { name } = req.params;
+    const limit = parseInt(req.query.limit) || 100;
+    
+    const result = await getCommodityHistory(name, limit);
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/commodities/range', async (req, res) => {
+  try {
+    const { start, end } = req.query;
+    
+    if (!start || !end) {
+      return res.status(400).json({ 
+        success: false, 
+        message: 'Both start and end dates are required' 
+      });
+    }
+    
+    const result = await getCommoditiesByDateRange(start, end);
+    if (result.success) {
+      res.json(result);
+    } else {
+      res.status(500).json(result);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.get('/api/commodities/cron/status', (req, res) => {
+  try {
+    const status = getCommoditiesCronStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/commodities/cron/trigger', async (req, res) => {
+  try {
+    // Trigger manual run (don't wait for completion)
+    triggerCommoditiesManualRun();
+    res.json({ 
+      success: true, 
+      message: 'Manual scrape triggered successfully' 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -298,4 +381,5 @@ app.listen(PORT, () => {
   startBrazilIndicesCron();
   startUSIndicesCron();
   startCurrenciesCron();
+  startCommoditiesCron();
 });
