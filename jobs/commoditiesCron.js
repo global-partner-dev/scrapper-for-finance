@@ -82,7 +82,7 @@ function startCommoditiesCron() {
 
   // Run every 5 minutes: */5 * * * *
   // Format: minute hour day month weekday
-  const task = cron.schedule('*/5 * * * *', async () => {
+  const task = cron.schedule('*/2 * * * *', async () => {
     await runCommoditiesJob();
   }, {
     scheduled: true,
