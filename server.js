@@ -9,6 +9,7 @@ const { startCurrenciesCron, getCronStatus: getCurrenciesCronStatus, triggerManu
 const { getLatestCurrencies, getCurrencyHistory, getCurrenciesByDateRange } = require('./services/currenciesService');
 const { startCommoditiesCron, getCronStatus: getCommoditiesCronStatus, triggerManualRun: triggerCommoditiesManualRun } = require('./jobs/commoditiesCron');
 const { getLatestCommodities, getCommodityHistory, getCommoditiesByDateRange } = require('./services/commoditiesService');
+const { startCleanupCron, getCronStatus: getCleanupCronStatus, triggerManualRun: triggerCleanupManualRun } = require('./jobs/cleanupDataCron');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -51,6 +52,10 @@ app.get('/', (req, res) => {
         dateRange: '/api/commodities/range?start=YYYY-MM-DD&end=YYYY-MM-DD',
         cronStatus: '/api/commodities/cron/status',
         manualTrigger: '/api/commodities/cron/trigger'
+      },
+      cleanup: {
+        cronStatus: '/api/cleanup/cron/status',
+        manualTrigger: '/api/cleanup/cron/trigger'
       }
     }
   });
@@ -356,6 +361,29 @@ app.post('/api/commodities/cron/trigger', async (req, res) => {
   }
 });
 
+// Data Cleanup API Routes
+app.get('/api/cleanup/cron/status', (req, res) => {
+  try {
+    const status = getCleanupCronStatus();
+    res.json({ success: true, ...status });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
+app.post('/api/cleanup/cron/trigger', async (req, res) => {
+  try {
+    // Trigger manual cleanup (don't wait for completion)
+    triggerCleanupManualRun();
+    res.json({ 
+      success: true, 
+      message: 'Manual cleanup triggered successfully' 
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, message: error.message });
+  }
+});
+
 // Error handling middleware
 app.use((err, req, res, next) => {
   console.error(err.stack);
@@ -382,4 +410,5 @@ app.listen(PORT, () => {
   startUSIndicesCron();
   startCurrenciesCron();
   startCommoditiesCron();
+  startCleanupCron();
 });
